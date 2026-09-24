@@ -61,7 +61,9 @@ CONF="$DIR/theme.conf"
 # ── lucid's own theme ────────────────────────────────────────────────────────
 # identified by its marker, not its directory name, so a renamed copy still works
 if grep -q '^Theme-Id=lucid$' "$DIR/metadata.desktop" 2>/dev/null; then
-    [[ -w "$DIR" ]] || report "readonly $DIR"
+    # the installer keeps the theme's QML root-owned and hands over only
+    # theme.conf and background.jpg; an older install owned the whole dir
+    [[ -w "$DIR/background.jpg" || -w "$DIR" ]] || report "readonly $DIR/background.jpg"
     ok "ok lucid $THEME"
 
     # the running shell is the only place the resolved tokens exist
@@ -95,8 +97,12 @@ PY
     if [[ -n "$WALL" && -f "$WALL" ]]; then
         IM=$(command -v magick || command -v convert || true)
         if [[ -n "$IM" ]]; then
+            # rendered aside and copied in: the directory itself is root's,
+            # so only an in-place write into the existing file is allowed
+            IMG=$(mktemp --suffix=.jpg)
             "$IM" "$WALL" -strip -resize 25% -blur 0x8 -resize 400% \
-                  -quality 88 "$DIR/background.jpg"
+                  -quality 88 "$IMG" && cp "$IMG" "$DIR/background.jpg"
+            rm -f "$IMG"
         else
             cp "$WALL" "$DIR/background.jpg"
         fi
