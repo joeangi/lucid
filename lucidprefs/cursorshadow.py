@@ -254,6 +254,9 @@ def capability(name):
     return False, "this theme's pointer is drawn without a shadow already"
 
 
+from install_journal import managed_paths
+
+
 def build(name):
     if is_variant(name):
         name = name[:-len(SUFFIX)]
@@ -266,46 +269,47 @@ def build(name):
     out = os.path.join(OUT_DIR, name + SUFFIX)
     dest = os.path.join(out, "cursors")
     staging = out + ".lucid-tmp"
-    shutil.rmtree(staging, ignore_errors=True)
-    os.makedirs(os.path.join(staging, "cursors"), exist_ok=True)
+    with managed_paths([out, staging]):
+        shutil.rmtree(staging, ignore_errors=True)
+        os.makedirs(os.path.join(staging, "cursors"), exist_ok=True)
 
-    built = skipped = 0
-    for entry in sorted(os.listdir(src)):
-        p = os.path.join(src, entry)
-        target = os.path.join(staging, "cursors", entry)
-        if os.path.islink(p):
-            os.symlink(os.readlink(p), target)
-            continue
-        geom = read_geometry(p)
-        frames = frames_for(sdir, entry)
-        if not geom or not frames or len(geom) % len(frames):
-            shutil.copy2(p, target)
-            skipped += 1
-            continue
-        # the file holds every frame of one nominal size before the next
-        images = []
-        try:
-            for i, (nominal, w, h, xh, yh, delay) in enumerate(geom):
-                svg, _ = frames[i % len(frames)]
-                images.append((nominal, w, h, xh, yh, delay,
-                               render(svg, w, h)))
-        except (RuntimeError, OSError) as e:
-            shutil.rmtree(staging, ignore_errors=True)
-            return {"ok": False, "error": str(e)}
-        write_xcursor(target, images)
-        built += 1
+        built = skipped = 0
+        for entry in sorted(os.listdir(src)):
+            p = os.path.join(src, entry)
+            target = os.path.join(staging, "cursors", entry)
+            if os.path.islink(p):
+                os.symlink(os.readlink(p), target)
+                continue
+            geom = read_geometry(p)
+            frames = frames_for(sdir, entry)
+            if not geom or not frames or len(geom) % len(frames):
+                shutil.copy2(p, target)
+                skipped += 1
+                continue
+            # the file holds every frame of one nominal size before the next
+            images = []
+            try:
+                for i, (nominal, w, h, xh, yh, delay) in enumerate(geom):
+                    svg, _ = frames[i % len(frames)]
+                    images.append((nominal, w, h, xh, yh, delay,
+                                   render(svg, w, h)))
+            except (RuntimeError, OSError) as e:
+                shutil.rmtree(staging, ignore_errors=True)
+                return {"ok": False, "error": str(e)}
+            write_xcursor(target, images)
+            built += 1
 
-    label = read_name(base) or name
-    with open(os.path.join(staging, "index.theme"), "w", encoding="utf-8") as f:
-        f.write("[Icon Theme]\n"
-                f"Name={label} (no shadow)\n"
-                "Comment=Rebuilt by Lucid from the theme's vector sources\n"
-                f"Inherits={name}\n")
+        label = read_name(base) or name
+        with open(os.path.join(staging, "index.theme"), "w", encoding="utf-8") as f:
+            f.write("[Icon Theme]\n"
+                    f"Name={label} (no shadow)\n"
+                    "Comment=Rebuilt by Lucid from the theme's vector sources\n"
+                    f"Inherits={name}\n")
 
-    shutil.rmtree(out, ignore_errors=True)
-    os.replace(staging, out)
-    return {"ok": True, "theme": name + SUFFIX, "built": built,
-            "copied": skipped}
+        shutil.rmtree(out, ignore_errors=True)
+        os.replace(staging, out)
+        return {"ok": True, "theme": name + SUFFIX, "built": built,
+                "copied": skipped}
 
 
 def read_name(base):

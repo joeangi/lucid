@@ -11,6 +11,7 @@ Only the keys Lucid owns are touched; every other setting and every comment in
 those files is left where it was.
 """
 
+import glob
 import json
 import os
 import re
@@ -309,8 +310,10 @@ def gtk_themes():
 def qt_styles():
     """The installed style plugins, plus the ones qt always has."""
     found = set(QT_BUILTIN_STYLES)
+    # debian and ubuntu keep qt's plugins under the multiarch triplet
     for root in ("/usr/lib/qt6/plugins/styles", "/usr/lib/qt/plugins/styles",
-                 "/usr/lib/qt5/plugins/styles", f"{HOME}/.local/lib/qt6/plugins/styles"):
+                 "/usr/lib/qt5/plugins/styles", f"{HOME}/.local/lib/qt6/plugins/styles",
+                 *glob.glob("/usr/lib/*-linux-gnu*/qt6/plugins/styles")):
         try:
             for f in os.listdir(root):
                 if not (f.startswith("lib") and f.endswith(".so")):

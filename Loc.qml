@@ -94,7 +94,9 @@ Singleton {
         root.busy = true;
         root.lastError = "";
         geocodeProc.running = false;
-        geocodeProc.command = ["sh", "-c", "curl -sf --max-time 10 'https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&format=json&name=" + encodeURIComponent(q) + "'"];
+        // curl gets the url as its own argument: no shell, so nothing typed
+        // here - an apostrophe in a place name included - is ever parsed
+        geocodeProc.command = ["curl", "-sf", "--proto", "=https", "--max-time", "10", "https://geocoding-api.open-meteo.com/v1/search?count=1&language=en&format=json&name=" + encodeURIComponent(q)];
         geocodeProc.running = true;
     }
 
@@ -124,7 +126,9 @@ Singleton {
     Process {
         id: detectProc
 
-        command: ["sh", "-c", "curl -sf --max-time 8 https://ipapi.co/json/ || curl -sf --max-time 8 http://ip-api.com/json/"]
+        // https only, fallback included: the reply sets your location and
+        // time zone, so it must not be readable or rewritable on the way
+        command: ["sh", "-c", "curl -sf --proto =https --max-time 8 https://ipapi.co/json/ || curl -sf --proto =https --max-time 8 https://ipwho.is/"]
         onExited: (code) => {
             root.busy = false;
             if (code !== 0)
@@ -136,6 +140,10 @@ Singleton {
             onStreamFinished: {
                 try {
                     const d = JSON.parse(this.text);
+                    if (d.success === false || d.error === true) {
+                        root.lastError = "the lookup service did not return a position";
+                        return ;
+                    }
                     const lat = d.latitude !== undefined ? d.latitude : d.lat;
                     const lon = d.longitude !== undefined ? d.longitude : d.lon;
                     if (typeof lat !== "number" || typeof lon !== "number") {
@@ -144,7 +152,9 @@ Singleton {
                     }
                     const city = d.city || "";
                     const country = d.country_name || d.country || "";
-                    root.apply(lat, lon, city !== "" ? (country !== "" ? city + ", " + country : city) : country, d.timezone || "");
+                    // ipwho.is nests the zone: timezone.id
+                    const tz = (d.timezone && typeof d.timezone === "object") ? (d.timezone.id || "") : (d.timezone || "");
+                    root.apply(lat, lon, city !== "" ? (country !== "" ? city + ", " + country : city) : country, tz);
                 } catch (e) {
                     root.lastError = "could not read the lookup service reply";
                 }
