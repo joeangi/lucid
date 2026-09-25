@@ -101,7 +101,7 @@ QS_BUILD_DEPS=(
     qt6-base-dev qt6-base-private-dev qt6-declarative-dev qt6-declarative-private-dev
     qt6-shadertools-dev qt6-wayland-dev qt6-wayland-private-dev qt6-svg-dev
     libcli11-dev libjemalloc-dev libwayland-dev libwayland-bin wayland-protocols
-    libdrm-dev libgbm-dev libvulkan-dev libpipewire-0.3-dev libpam0g-dev
+    libdrm-dev libgbm-dev libegl-dev libvulkan-dev libpipewire-0.3-dev libpam0g-dev
     libpolkit-agent-1-dev libpolkit-gobject-1-dev libglib2.0-dev libxcb1-dev
 )
 AWWW_TAG=v0.12.1
