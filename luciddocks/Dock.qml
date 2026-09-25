@@ -11,10 +11,24 @@ PanelWindow {
 
     property bool morphing: false
     property bool closingFromHidden: false
-    readonly property bool dockBusy: dockWindow.menuOpen || dockWindow.dragging || (dockWindow.morphing && !dockWindow.launcherFromHidden && !dockWindow.closingFromHidden)
+    readonly property bool dockBusy: dockWindow.menuOpen || dockWindow.dragging || contextMenu.menuVisible || stackPopup.popupVisible || (dockWindow.morphing && !dockWindow.launcherFromHidden && !dockWindow.closingFromHidden)
     property bool slidingAway: false
     readonly property bool heldByPointer: revealArea.containsMouse || (shellHover.hovered && !dockWindow.slidingAway)
-    readonly property bool dockRevealed: !Prefs.dockAutoHide || dockWindow.dockBusy || dockWindow.heldByPointer
+    readonly property bool canHide: Prefs.dockVisibilityMode !== "always"
+    readonly property bool dockRevealed: dockVisibility.revealed
+    SurfaceVisibility {
+        id: dockVisibility
+        mode: Prefs.dockEnabled ? Prefs.dockVisibilityMode : "always"
+        hovered: dockWindow.heldByPointer
+        busy: dockWindow.dockBusy
+        // Use the resting dock rectangle, never its animated/launcher bounds.
+        overlapping: mode === "dodge" && dockWindow.screen !== null && WindowOverlap.overlaps(dockWindow.screen, [{
+            x: (dockWindow.screen.width - shell.implicitWidth) / 2,
+            y: dockWindow.screen.height - Prefs.effectiveDockBottomMargin - shell.implicitHeight,
+            width: shell.implicitWidth,
+            height: shell.implicitHeight
+        }])
+    }
     property bool launcherFromHidden: false
     readonly property bool renderAsNotch: Prefs.dockNotch || dockWindow.launcherFromHidden
     readonly property int placementMargin: dockWindow.launcherFromHidden ? 0 : Prefs.effectiveDockBottomMargin
@@ -61,7 +75,9 @@ PanelWindow {
         dockWindow.pulseMorph();
         dockWindow.contentFadeDelay = dockWindow.menuOpen ? 190 : 0;
         if (dockWindow.menuOpen) {
-            dockWindow.launcherFromHidden = Prefs.dockAutoHide && !dockWindow.heldByPointer;
+            // menuOpen already holds the surface visible when this handler runs.
+            dockWindow.launcherFromHidden = dockWindow.canHide && !dockWindow.heldByPointer
+                && (Prefs.dockVisibilityMode === "auto" || dockVisibility.overlapping);
             dockWindow.closingFromHidden = false;
             dockWindow.snapPlacement = true;
             snapClear.restart();
@@ -1019,9 +1035,9 @@ PanelWindow {
     // unplugged one is remapped rather than staying gone until a reload
     visible: Monitors.surfacesUp
     margins.bottom: 0
-    exclusiveZone: (!Prefs.loaded || !Prefs.dockEnabled || Prefs.dockAutoHide) ? 0 : (shell.implicitHeight + Prefs.effectiveDockBottomMargin)
+    exclusiveZone: (!Prefs.loaded || !Prefs.dockEnabled || dockWindow.canHide) ? 0 : (shell.implicitHeight + Prefs.effectiveDockBottomMargin)
     WlrLayershell.keyboardFocus: dockWindow.menuOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
-    WlrLayershell.layer: dockWindow.menuOpen ? WlrLayer.Overlay : WlrLayer.Top
+    WlrLayershell.layer: (dockWindow.menuOpen || dockWindow.canHide) ? WlrLayer.Overlay : WlrLayer.Top
     color: "transparent"
     implicitWidth: Math.max(dockWindow.maxDockWidth, dockWindow.menuWidth)
     implicitHeight: dockWindow.menuMaxHeight + dockWindow.dragHeadroom
@@ -1169,8 +1185,8 @@ PanelWindow {
         height: dockWindow.dockRevealed ? dockWindow.placementMargin + 3 : 3
         hoverEnabled: true
         acceptedButtons: Qt.NoButton
-        enabled: Prefs.dockAutoHide
-        visible: Prefs.dockAutoHide
+        enabled: Prefs.dockEnabled && dockWindow.canHide
+        visible: enabled
     }
 
     StackPopup {
@@ -1942,7 +1958,7 @@ PanelWindow {
         height: dockWindow.dragging ? dockWindow.height : shell.height
 
         Region {
-            item: Prefs.dockAutoHide ? revealArea : null
+            item: revealArea.enabled ? revealArea : null
         }
 
     }

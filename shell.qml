@@ -69,6 +69,38 @@ ShellRoot {
         readonly property var leftWidths: [workspacesMod.width * bar.wsCollapse, mprisMod.width, sysTrayMod.width]
         readonly property var rightWidths: [notifMod.width, systemMod.width]
         readonly property var modules: [workspacesMod, mprisMod, sysTrayMod, clockMod, notifMod, systemMod]
+        readonly property bool canHide: Prefs.barVisibilityMode !== "always"
+        readonly property bool surfaceBusy: workspacesMod.reveal > 0.001 || bar.modules.some(m => m.expanded === true || m.anyOpen === true || m.overlayOpen === true || m.popupOpen === true || m.panelTransitioning === true)
+        readonly property bool moduleHovered: bar.modules.some(m => m.compactHovered === true)
+        readonly property var restingRects: bar.modules.filter(m => m.shown && m.width > 0.5).map(m => ({
+            x: m.x, y: Prefs.effectiveBarTopMargin, width: m.width, height: Prefs.barHeight
+        }))
+        property real contentY: barVisibility.revealed ? Prefs.effectiveBarTopMargin : -(Prefs.barHeight + Prefs.barHoverGrow + 1)
+
+        SurfaceVisibility {
+            id: barVisibility
+            mode: Prefs.barEnabled ? Prefs.barVisibilityMode : "always"
+            overlapping: mode === "dodge" && WindowOverlap.overlaps(bar.screen, bar.restingRects)
+            hovered: barReveal.containsMouse || bar.moduleHovered
+            busy: bar.surfaceBusy
+        }
+
+        Behavior on contentY {
+            NumberAnimation {
+                duration: Theme.barMs(220)
+                easing.type: Easing.OutCubic
+            }
+        }
+
+        MouseArea {
+            id: barReveal
+            width: parent.width
+            height: barVisibility.revealed ? Prefs.effectiveBarTopMargin + 3 : 3
+            enabled: bar.canHide && bar.anyModuleShown
+            visible: enabled
+            hoverEnabled: true
+            acceptedButtons: Qt.NoButton
+        }
         readonly property real leftGroupWidth: bar.placeGroup(bar.leftWidths, 0)[bar.leftWidths.length]
         readonly property real rightGroupWidth: bar.placeGroup(bar.rightWidths, 0)[bar.rightWidths.length]
         readonly property real leftOriginX: bar.sideMargin
@@ -95,8 +127,12 @@ ShellRoot {
         }
 
         color: "transparent"
-        implicitHeight: bar.screen ? bar.screen.height - Prefs.effectiveBarTopMargin : 800
-        exclusiveZone: (Prefs.barEnabled && bar.anyModuleShown) ? Prefs.barHeight : 0
+        // Keep the edge trigger reachable over fullscreen clients in hide modes.
+        WlrLayershell.layer: bar.canHide ? WlrLayer.Overlay : WlrLayer.Top
+        implicitHeight: bar.screen ? bar.screen.height : 800
+        // Never change reservation with overlap: that would resize tiled windows
+        // and feed back into the overlap decision.
+        exclusiveZone: (Prefs.barEnabled && bar.anyModuleShown && !bar.canHide) ? Prefs.barHeight + Prefs.effectiveBarTopMargin : 0
 
         anchors {
             top: true
@@ -106,7 +142,7 @@ ShellRoot {
         }
 
         margins {
-            top: Prefs.effectiveBarTopMargin
+            top: 0
         }
 
         Mpris {
@@ -117,6 +153,7 @@ ShellRoot {
             hostWindow: bar
             x: bar.leftPlaces[1]
             anchors.top: parent.top
+            anchors.topMargin: bar.contentY
 
         }
 
@@ -128,6 +165,7 @@ ShellRoot {
             hostWindow: bar
             x: bar.leftPlaces[2]
             anchors.top: parent.top
+            anchors.topMargin: bar.contentY
 
         }
 
@@ -140,6 +178,7 @@ ShellRoot {
 
             hostWindow: bar
             anchors.top: parent.top
+            anchors.topMargin: bar.contentY
             x: Math.min(Math.max((parent.width - width) / 2, bar.sideMargin + bar.leftGroupWidth + sideGap), bar.width - bar.rightGroupWidth - bar.sideMargin - width - sideGap)
 
         }
@@ -152,6 +191,7 @@ ShellRoot {
             hostWindow: bar
             x: bar.rightPlaces[0]
             anchors.top: parent.top
+            anchors.topMargin: bar.contentY
 
         }
 
@@ -164,6 +204,7 @@ ShellRoot {
             mprisMod: mprisMod
             x: bar.rightPlaces[1]
             anchors.top: parent.top
+            anchors.topMargin: bar.contentY
 
         }
 
@@ -209,7 +250,7 @@ ShellRoot {
                     hovered: flares.modHovered
                     size: flares.flareFor(true)
                     x: flares.modelData ? flares.modelData.x - width + flares.bite : 0
-                    y: 0
+                    y: bar.contentY
                 }
 
                 BarFlare {
@@ -217,7 +258,7 @@ ShellRoot {
                     mirrored: true
                     size: flares.flareFor(false)
                     x: flares.modelData ? flares.modelData.x + flares.modelData.width - flares.bite : 0
-                    y: 0
+                    y: bar.contentY
                 }
 
             }
@@ -273,11 +314,15 @@ ShellRoot {
             hostWindow: bar
             dockMod: dock
             restX: bar.leftPlaces[0]
-            restY: 0
+            restY: bar.contentY
 
         }
 
         mask: Region {
+
+            Region {
+                item: barReveal.enabled ? barReveal : null
+            }
 
             ModuleRegion {
                 mod: workspacesMod
@@ -305,7 +350,12 @@ ShellRoot {
 
         }
 
-        BackgroundEffect.blurRegion: (Theme.blurAmount > 0 && bar.laidOut) ? barBlurRegion : null
+        // The host window spans the screen so expanded panels can fit. Leaving
+        // an offscreen blur region attached after hiding can blur that whole
+        // window on Hyprland. Remove the effect before sliding out; restore it
+        // only after the modules are back inside the window on reveal.
+        BackgroundEffect.blurRegion: (Theme.blurAmount > 0 && bar.laidOut
+            && bar.anyModuleShown && barVisibility.revealed && bar.contentY >= 0) ? barBlurRegion : null
 
         Region {
             id: barBlurRegion
