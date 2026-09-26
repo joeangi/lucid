@@ -310,8 +310,9 @@ def gtk_themes():
 def qt_styles():
     """The installed style plugins, plus the ones qt always has."""
     found = set(QT_BUILTIN_STYLES)
-    # debian and ubuntu keep qt's plugins under the multiarch triplet
-    for root in ("/usr/lib/qt6/plugins/styles", "/usr/lib/qt/plugins/styles",
+    # Fedora uses lib64; Debian and Ubuntu use multiarch paths.
+    for root in ("/usr/lib64/qt6/plugins/styles", "/usr/lib64/qt5/plugins/styles",
+                 "/usr/lib/qt6/plugins/styles", "/usr/lib/qt/plugins/styles",
                  "/usr/lib/qt5/plugins/styles", f"{HOME}/.local/lib/qt6/plugins/styles",
                  *glob.glob("/usr/lib/*-linux-gnu*/qt6/plugins/styles")):
         try:

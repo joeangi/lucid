@@ -40,6 +40,11 @@ set -euo pipefail
 export LC_ALL=C
 umask 077
 
+OS_ID=$([[ -r /etc/os-release ]] && . /etc/os-release; printf '%s' "${ID:-}")
+if [[ "$OS_ID" == fedora || -f /etc/arch-release ]]; then
+    exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/support/uninstall-arch-fedora.sh" "$@"
+fi
+
 SHELL_DIR="$HOME/.config/quickshell"
 STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/lucid"
 MANIFEST="$STATE_DIR/manifest"

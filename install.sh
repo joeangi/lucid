@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Lucid installer — Ubuntu + Hyprland
+# Lucid installer — Ubuntu, Arch Linux, and Fedora + Hyprland
 #
 # installs dependencies, places the shell at ~/.config/quickshell, and sets up
 # the full bundle: the Hyprland config (binds, window rules, blur, autostart),
@@ -16,6 +16,12 @@ export LC_ALL=C
 umask 077
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Keep the existing Arch/Fedora package flow separate from Ubuntu's journaled
+# APT flow. Sourcing os-release in a subshell avoids replacing Lucid's VERSION.
+OS_ID=$([[ -r /etc/os-release ]] && . /etc/os-release; printf '%s' "${ID:-}")
+if [[ "$OS_ID" == fedora || -f /etc/arch-release ]]; then
+    exec "$SRC/support/install-arch-fedora.sh" "$@"
+fi
 # the VERSION file ships inside the shell tree, so the installed copy can tell
 # the update check which version it is. bump it to cut a release
 VERSION="unknown"

@@ -622,7 +622,8 @@ BarPill {
         id: setBrightnessProc
 
         // brightness.sh falls back to logind when brightnessctl lacks write access
-        command: root.pendingBrightness >= 0 ? [Quickshell.env("HOME") + "/.config/lucid/brightness.sh", "set", root.pendingBrightness + "%"] : []
+        command: root.pendingBrightness >= 0 && root.backlightDevice !== "" ? [Quickshell.env("HOME") + "/.config/lucid/brightness.sh", "-d", root.backlightDevice, "set", root.pendingBrightness + "%"] : []
+        onExited: brightnessFile.reload()
     }
 
     Process {

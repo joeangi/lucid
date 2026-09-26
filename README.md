@@ -20,7 +20,7 @@ your wallpaper.
 
 <p>
   <img alt="Version" src="https://img.shields.io/badge/VERSION-v1.10.5-FF7F50?style=for-the-badge&labelColor=14100E">
-  <img alt="Platform" src="https://img.shields.io/badge/PLATFORM-UBUNTU-FFAB91?style=for-the-badge&logo=ubuntu&logoColor=FFAB91&labelColor=14100E">
+  <img alt="Platform" src="https://img.shields.io/badge/PLATFORM-UBUNTU%20%2F%20ARCH%20%2F%20FEDORA-FFAB91?style=for-the-badge&labelColor=14100E">
   <img alt="Compositor" src="https://img.shields.io/badge/COMPOSITOR-HYPRLAND-80CBC4?style=for-the-badge&labelColor=14100E">
   <a href="https://quickshell.org"><img alt="Built on Quickshell" src="https://img.shields.io/badge/BUILT%20ON-QUICKSHELL-FFC46B?style=for-the-badge&labelColor=14100E"></a>
 </p>
@@ -43,7 +43,12 @@ your wallpaper.
 
 ## Install
 
-Lucid installs to `~/.config/quickshell`. Target **Ubuntu 26.04**, with
+Lucid installs to `~/.config/quickshell`. The installer selects the Ubuntu,
+Arch Linux, or Fedora flow from the host distribution.
+
+### Ubuntu
+
+Target **Ubuntu 26.04**, with
 **Qt ≥ 6.6** and **Hyprland ≥ 0.55**. Stock Ubuntu 24.04 is unsupported:
 [its Qt is 6.4](https://packages.ubuntu.com/noble/libqt6core6t64), while
 [Quickshell v0.3.1 requires Qt 6.6](https://github.com/quickshell-mirror/quickshell/blob/v0.3.1/CMakeLists.txt).
@@ -62,7 +67,21 @@ cd lucid
 ./install.sh
 ```
 
-That's it — the installer does the rest:
+### Arch Linux and Fedora
+
+Run the same `./install.sh` command from a separate checkout. Arch uses
+`pacman` and an available `paru` or `yay` helper; conventional Fedora uses
+`dnf` and enabled repositories. Fedora Atomic desktops need manual setup.
+Install Hyprland first and log into its session; the bundled Lua config needs
+Hyprland 0.55 or newer. Fedora lists unavailable optional packages and dock
+apps instead of adding repositories. Use `./install.sh --help` on these systems
+for their installer options. Their existing installer and uninstaller are kept
+separate from Ubuntu's journaled APT lifecycle; the uninstaller leaves
+installed packages and some configuration for manual cleanup.
+
+### Ubuntu installer steps
+
+The Ubuntu installer does the following:
 
 1. **Checks your system** — checks Qt before making changes and requires the
    runtime dependencies before deploying desktop files. A failed dependency
@@ -180,6 +199,9 @@ too, as a source archive. Nothing carries over between the two — v1.0.0 moved
 enough that it is worth installing fresh.
 
 ### Installer options
+
+These options describe the Ubuntu installer. On Arch Linux or Fedora, run
+`./install.sh --help` for the options supported by that installer.
 
 | Flag | What it does |
 | --- | --- |
@@ -710,13 +732,18 @@ python3 ~/.config/lucid/add-theme.py <repo-url> [--list] [--variant <name>] [--n
 
 ## Requirements
 
-Ubuntu 26.04 is the target; Qt 6.6 or newer and Hyprland 0.55 or newer are
+On Ubuntu, 26.04 is the target; Qt 6.6 or newer and Hyprland 0.55 or newer are
 required. Package candidates are checked at runtime. These lists explain what
 is installed and allow you to provision dependencies yourself. `./install.sh --list-optional` prints the same lists.
 
+On Arch, the shell packages are `quickshell`, `qt6-5compat`, `qt6-declarative`,
+and `qt6-multimedia`. Fedora uses `quickshell`, `qt6-qt5compat`,
+`qt6-qtdeclarative`, and `qt6-qtmultimedia`. Their installers use distribution
+package names for the other features and report unavailable optional packages.
+
 ### Essential
 
-Without these the shell doesn't start, or starts visibly broken: no
+The following table is for Ubuntu. Without these the shell doesn't start, or starts visibly broken: no
 wallpaper, no palette, dead panels.
 
 | Package | Backs |
@@ -742,7 +769,7 @@ and so on). They're only installed when something actually needs building.
 
 ### Optional
 
-Each group is asked about separately, with skip as the default. Leave one out and only its own feature
+On Ubuntu, each group is asked about separately, with skip as the default. Leave one out and only its own feature
 goes missing, and the shell says so where that feature appears.
 
 | Group | Packages | Backs |
@@ -815,6 +842,10 @@ Every surface is scriptable. `qs ipc call -- <target> <function> [arg]`:
 ```sh
 ./uninstall.sh
 ```
+
+On Arch Linux and Fedora, this runs the existing uninstaller, which leaves
+packages and some settings for manual cleanup. The restoration details below
+describe the Ubuntu installer and its journal.
 
 Replays the install record in `~/.local/state/lucid` (or `$XDG_STATE_HOME/lucid`
 inside your home). It shows a removal/restoration summary and asks before
