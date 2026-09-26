@@ -22,6 +22,7 @@ Item {
     property bool focusGrabs: true
     property bool panelFades: true
     property bool surfaceLayered: false
+    property bool stableHoverSurface: true
 
     signal compactClicked()
 
@@ -223,12 +224,27 @@ Item {
 
     }
 
+    // Some fractional display scales re-rasterize text while its parent surface
+    // grows. Let those pills expand a background underneath a stationary shell
+    // so their compact content never changes coordinate space during hover.
+    Rectangle {
+        visible: pill.stableHoverSurface && !pill.popupMode && !pill.anyOpen && pill.hoverGrow > 0
+        x: pill.surfaceX
+        y: pill.surfaceY
+        width: pill.width + pill.hoverGrow * 2
+        height: pill.height
+        color: Theme.bg
+        radius: pill.cornerRadius
+        topLeftRadius: pill.topRadius
+        topRightRadius: pill.topRadius
+    }
+
     Rectangle {
         id: shell
 
-        width: pill.popupMode ? (pill.anyOpen ? pill.popupWidth : pill.compactWidth + pill.hoverGrow * 2) : pill.width + pill.hoverGrow * 2
+        width: pill.popupMode ? (pill.anyOpen ? pill.popupWidth : pill.compactWidth + pill.hoverGrow * 2) : (pill.stableHoverSurface && !pill.anyOpen ? pill.width : pill.width + pill.hoverGrow * 2)
         height: pill.popupMode ? (pill.anyOpen ? pill.popupHeight : pill.compactHeight) : pill.height
-        x: pill.popupMode && pill.anyOpen ? pill.popupX : pill.surfaceX
+        x: pill.popupMode && pill.anyOpen ? pill.popupX : (pill.stableHoverSurface && !pill.anyOpen ? 0 : pill.surfaceX)
         y: pill.popupMode && pill.anyOpen ? pill.compactHeight + Prefs.barPopupGap : pill.surfaceY
         visible: !pill.popupMode || shell.y > 0.5
         color: Theme.bg

@@ -539,7 +539,6 @@ BarPill {
     panelHeight: Math.min(root.maxPanelHeight, root.viewContentHeight)
     expandedRadius: Theme.shapeXl
     compactCollapseScale: 0.94
-    surfaceLayered: true
 
     Component.onCompleted: {
         findDeviceProc.running = true;
@@ -596,7 +595,7 @@ BarPill {
     Process {
         id: findDeviceProc
 
-        command: ["bash", "-c", "ls /sys/class/backlight | head -1"]
+        command: ["bash", "-c", "brightnessctl -m --list 2>/dev/null | awk -F, '$2 == \"backlight\" { print $1; exit }'"]
 
         stdout: StdioCollector {
             onStreamFinished: root.backlightDevice = this.text.trim().replace(/[@/*=|]$/, "")
@@ -621,7 +620,8 @@ BarPill {
     Process {
         id: setBrightnessProc
 
-        command: root.pendingBrightness >= 0 ? ["brightnessctl", "set", root.pendingBrightness + "%"] : []
+        command: root.pendingBrightness >= 0 && root.backlightDevice !== "" ? ["brightnessctl", "-d", root.backlightDevice, "set", root.pendingBrightness + "%"] : []
+        onExited: brightnessFile.reload()
     }
 
     Process {
@@ -965,6 +965,13 @@ BarPill {
         path: root.backlightDevice ? "/sys/class/backlight/" + root.backlightDevice + "/brightness" : ""
         watchChanges: true
         onFileChanged: reload()
+    }
+
+    Timer {
+        interval: 500
+        repeat: true
+        running: root.backlightDevice !== ""
+        onTriggered: brightnessFile.reload()
     }
 
     compactContent: [

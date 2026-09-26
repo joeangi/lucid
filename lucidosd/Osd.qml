@@ -243,7 +243,7 @@ PanelWindow {
     Process {
         id: findDeviceProc
 
-        command: ["bash", "-c", "ls /sys/class/backlight | head -1"]
+        command: ["bash", "-c", "brightnessctl -m --list 2>/dev/null | awk -F, '$2 == \"backlight\" { print $1; exit }'"]
 
         stdout: StdioCollector {
             onStreamFinished: osdWindow.backlightDevice = this.text.trim().replace(/[@/*=|]$/, "")
@@ -268,6 +268,13 @@ PanelWindow {
         path: osdWindow.backlightDevice ? "/sys/class/backlight/" + osdWindow.backlightDevice + "/brightness" : ""
         watchChanges: true
         onFileChanged: reload()
+    }
+
+    Timer {
+        interval: 500
+        repeat: true
+        running: osdWindow.backlightDevice !== ""
+        onTriggered: brightnessFile.reload()
     }
 
     Process {
