@@ -2210,8 +2210,19 @@ BarPill {
             running: false
         }
 
+        Text {
+            anchors.left: parent.left
+            anchors.verticalCenter: parent.verticalCenter
+            visible: !mq.overflowing
+            text: mq.content
+            color: mq.textColor
+            font.family: Theme.fontFamily
+            font.bold: mq.bold
+            font.pixelSize: mq.pixelSize
+        }
+
         Repeater {
-            model: mq.sliceCount * 2 + 1
+            model: mq.overflowing ? mq.sliceCount * 2 + 1 : 0
 
             Item {
                 id: slice

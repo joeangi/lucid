@@ -609,8 +609,9 @@ Singleton {
 
     function runPower(id) {
         var cmds = {
-            // uwsm only stops a session it started, so fall back to hyprland
-            "logout": ["sh", "-c", "uwsm stop 2>/dev/null || hyprctl dispatch exit"],
+            // Only ask uwsm to stop sessions it actually manages. `uwsm stop`
+            // may return success for an unmanaged session, skipping the fallback.
+            "logout": ["sh", "-c", "if uwsm check is-active >/dev/null 2>&1; then uwsm stop; else hyprctl dispatch 'hl.dsp.exit()' || hyprctl dispatch exit; fi"],
             "suspend": ["systemctl", "suspend"],
             "shutdown": ["systemctl", "poweroff"],
             "hibernate": ["systemctl", "hibernate"],

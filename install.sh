@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Lucid installer — Arch Linux + Hyprland
+# Lucid installer — Arch Linux or Fedora + Hyprland
 #
 # installs dependencies, places the shell at ~/.config/quickshell, and sets up
 # the full bundle: the Hyprland config (binds, window rules, blur, autostart),
@@ -92,8 +92,22 @@ ask() {
 
 step "Checking the system"
 
-[[ -f /etc/arch-release ]] || die "this installer is Arch-only. see the README for a manual install."
-command -v pacman &>/dev/null || die "pacman not found"
+DISTRO=""
+if [[ -r /etc/os-release ]]; then
+    . /etc/os-release
+    DISTRO="${ID:-}"
+fi
+# Keep support for Arch derivatives that provide arch-release.
+[[ "$DISTRO" != fedora && -f /etc/arch-release ]] && DISTRO=arch
+case "$DISTRO" in
+    arch) command -v pacman &>/dev/null || die "pacman not found" ;;
+    fedora)
+        [[ ! -e /run/ostree-booted ]] || die "Fedora Atomic desktops need a manual install; this installer uses DNF."
+        command -v dnf &>/dev/null || die "dnf not found"
+        command -v rpm &>/dev/null || die "rpm not found"
+        ;;
+    *) die "this installer supports Arch Linux and Fedora. see the README for a manual install." ;;
+esac
 [[ $EUID -ne 0 ]] || die "don't run this as root — it installs into your home directory"
 [[ -f "$SRC/shell.qml" ]] || die "run this from inside the Lucid repo (no shell.qml next to install.sh)"
 
@@ -101,12 +115,14 @@ command -v Hyprland &>/dev/null || command -v hyprctl &>/dev/null \
     || warn "Hyprland not found. Lucid uses Hyprland-specific APIs and will not work under another compositor."
 
 AUR=""
-for helper in paru yay; do
-    command -v "$helper" &>/dev/null && { AUR="$helper"; break; }
-done
+if [[ "$DISTRO" == arch ]]; then
+    for helper in paru yay; do
+        command -v "$helper" &>/dev/null && { AUR="$helper"; break; }
+    done
+fi
 
-say "  arch linux      ${grn}ok${r}"
-say "  aur helper      ${AUR:-${ylw}none${r}}"
+say "  distribution    $DISTRO ${grn}ok${r}"
+[[ "$DISTRO" == arch ]] && say "  aur helper      ${AUR:-${ylw}none${r}}"
 say "  install target  $SHELL_DIR"
 say "  theming layer   $([[ $WITH_THEMING -eq 1 ]] && echo yes || echo 'no (--no-theming)')"
 say "  hyprland config $([[ $WITH_HYPR   -eq 1 ]] && echo yes || echo 'no (--no-hypr)')"
@@ -165,6 +181,37 @@ declare -A PKG_ALTS=(
     [xdg-desktop-portal-gtk]="xdg-desktop-portal-gnome xdg-desktop-portal-kde"
 )
 
+# Fedora uses RPM names and only the user's enabled repositories. Optional
+# packages absent from those repositories are reported, never sent to the AUR.
+if [[ "$DISTRO" == fedora ]]; then
+    PKG_REQUIRED=(quickshell qt6-qt5compat qt6-qtdeclarative qt6-qtmultimedia)
+    PKG_FEATURES=(
+        matugen jq ImageMagick NetworkManager bluez kde-connect python3-gobject
+        pulseaudio-utils wireplumber brightnessctl upower hypridle
+        grim wf-recorder ffmpeg-free wl-clipboard wtype cliphist
+        tesseract tesseract-langpack-eng hyprpicker
+        python3-pillow python3-numpy python3-fonttools
+        cava songrec curl libnotify awww fastfetch python3-pywal
+        google-noto-color-emoji-fonts xdg-utils zenity swappy polkit
+        accountsservice gsettings-desktop-schemas qt6ct xdg-desktop-portal-gtk
+        librsvg2-tools
+    )
+    PKG_HYPR=(
+        kitty nautilus playerctl gnome-calculator starship fish
+        jetbrains-mono-fonts adw-gtk3-theme papirus-icon-theme
+    )
+    PKG_DOCK=(zen-browser codium vesktop spotify-client proton-vpn-gnome-desktop steam)
+    PKG_ALTS=(
+        [codium]="code vscodium"
+        [spotify-client]="spotify"
+        [vesktop]="discord"
+        [ffmpeg-free]="ffmpeg"
+        [curl]="curl-minimal"
+        [qt6ct]="qt6ct-kde"
+        [xdg-desktop-portal-gtk]="xdg-desktop-portal-gnome xdg-desktop-portal-kde"
+    )
+fi
+
 # a couple of the dock's AUR packages need something in place before the build
 # will even start. without this the package silently drops out of the install
 # with a warning, and the dock is left drawing a blank letter tile for it.
@@ -186,11 +233,19 @@ aur_prepare() {
 }
 
 # true when the package, or anything standing in for it, is installed
+pkg_installed() {
+    if [[ "$DISTRO" == fedora ]]; then
+        rpm -q "$1" &>/dev/null
+    else
+        pacman -Qq "$1" &>/dev/null
+    fi
+}
+
 have_pkg() {
-    pacman -Qq "$1" &>/dev/null && return 0
+    pkg_installed "$1" && return 0
     local alt
     for alt in ${PKG_ALTS[$1]:-}; do
-        pacman -Qq "$alt" &>/dev/null && return 0
+        pkg_installed "$alt" && return 0
     done
     return 1
 }
@@ -203,7 +258,7 @@ step "Resolving dependencies"
 # a never-synced pacman database makes every -Si lookup fail, so real repo
 # packages get misread as AUR and nothing installs. check against a package
 # that is guaranteed present rather than trusting the db exists.
-if ! pacman -Si bash &>/dev/null; then
+if [[ "$DISTRO" == arch ]] && ! pacman -Si bash &>/dev/null; then
     warn "your pacman database is empty or stale — package lookups will fail."
     warn "run this first, then re-run the installer:"
     warn "    sudo pacman -Syu"
@@ -219,7 +274,7 @@ if [[ $WITH_APPS -eq 1 ]]; then
     for p in "${PKG_DOCK[@]}"; do
         # steam lives in multilib. with that repo off the lookup fails, the
         # name gets misread as an AUR package and the build fails much later
-        if [[ "$p" == steam ]] && ! grep -q '^\[multilib\]' /etc/pacman.conf 2>/dev/null; then
+        if [[ "$DISTRO" == arch && "$p" == steam ]] && ! grep -q '^\[multilib\]' /etc/pacman.conf 2>/dev/null; then
             say "  ${dim}skipping steam — the multilib repo is not enabled${r}"
             continue
         fi
@@ -240,10 +295,29 @@ elif [[ $SKIP_DEPS -eq 1 ]]; then
 else
     # split by what the configured repos actually carry, so one unresolvable
     # name can never take the whole batch down with it
-    from_repo=(); from_aur=()
-    for p in "${missing[@]}"; do
-        if pacman -Si "$p" &>/dev/null; then from_repo+=("$p"); else from_aur+=("$p"); fi
-    done
+    from_repo=(); from_aur=(); unavailable=()
+    if [[ "$DISTRO" == fedora ]]; then
+        # An unmatched repoquery exits successfully with empty output. Match
+        # exact returned names instead of relying on its exit status alone.
+        available=$(dnf -q repoquery --available --queryformat '%{name}\n' "${missing[@]}") \
+            || die "could not query Fedora repositories; check DNF and try again, or use --skip-deps."
+        for p in "${missing[@]}"; do
+            if grep -qxF -- "$p" <<< "$available"; then
+                from_repo+=("$p")
+            else
+                unavailable+=("$p")
+            fi
+        done
+        if (( ${#unavailable[@]} )); then
+            DEPS_OK=0
+            warn "not available in your enabled repositories: ${unavailable[*]}"
+            warn "install these separately if needed; no additional repositories will be enabled."
+        fi
+    else
+        for p in "${missing[@]}"; do
+            if pacman -Si "$p" &>/dev/null; then from_repo+=("$p"); else from_aur+=("$p"); fi
+        done
+    fi
 
     [[ ${#from_repo[@]} -gt 0 ]] && say "  from the repos: ${from_repo[*]}"
     [[ ${#from_aur[@]}  -gt 0 ]] && say "  not in your repos, will try the aur: ${from_aur[*]}"
@@ -256,12 +330,19 @@ else
     done
     if (( ${#dock_missing[@]} )); then
         say "  ${dim}of those, the dock's default apps: ${dock_missing[*]}${r}"
-        say "  ${dim}(several GB, mostly from the aur — pass --no-apps to skip them)${r}"
+        say "  ${dim}(can be several GB — pass --no-apps to skip them)${r}"
     fi
 
-    if ask "  install these now?"; then
+    if (( ${#from_repo[@]} + ${#from_aur[@]} == 0 )); then
+        warn "none of the missing packages can be installed from your configured sources."
+    elif ask "  install these now?"; then
         if [[ ${#from_repo[@]} -gt 0 ]]; then
-            if sudo pacman -S --needed --noconfirm "${from_repo[@]}"; then
+            if [[ "$DISTRO" == fedora ]]; then
+                install_cmd=(sudo dnf install -y)
+            else
+                install_cmd=(sudo pacman -S --needed --noconfirm)
+            fi
+            if "${install_cmd[@]}" "${from_repo[@]}"; then
                 say "  repo packages installed"
             else
                 DEPS_OK=0

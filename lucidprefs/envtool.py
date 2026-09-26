@@ -309,7 +309,8 @@ def gtk_themes():
 def qt_styles():
     """The installed style plugins, plus the ones qt always has."""
     found = set(QT_BUILTIN_STYLES)
-    for root in ("/usr/lib/qt6/plugins/styles", "/usr/lib/qt/plugins/styles",
+    for root in ("/usr/lib64/qt6/plugins/styles", "/usr/lib64/qt5/plugins/styles",
+                 "/usr/lib/qt6/plugins/styles", "/usr/lib/qt/plugins/styles",
                  "/usr/lib/qt5/plugins/styles", f"{HOME}/.local/lib/qt6/plugins/styles"):
         try:
             for f in os.listdir(root):
