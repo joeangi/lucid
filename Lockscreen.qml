@@ -609,7 +609,7 @@ Singleton {
 
     function runPower(id) {
         var cmds = {
-            "logout": [Quickshell.env("HOME") + "/.config/lucid/logout.sh"],
+            "logout": [Quickshell.env("HOME") + "/.config/quickshell/lucidbar/logout.sh"],
             "suspend": ["systemctl", "suspend"],
             "shutdown": ["systemctl", "poweroff"],
             "hibernate": ["systemctl", "hibernate"],
