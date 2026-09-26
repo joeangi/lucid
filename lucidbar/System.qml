@@ -539,6 +539,7 @@ BarPill {
     panelHeight: Math.min(root.maxPanelHeight, root.viewContentHeight)
     expandedRadius: Theme.shapeXl
     compactCollapseScale: 0.94
+    surfaceLayered: true
 
     Component.onCompleted: {
         findDeviceProc.running = true;
@@ -595,7 +596,7 @@ BarPill {
     Process {
         id: findDeviceProc
 
-        command: ["bash", "-c", "brightnessctl -m --list 2>/dev/null | awk -F, '$2 == \"backlight\" { print $1; exit }'"]
+        command: ["bash", "-c", "ls /sys/class/backlight | head -1"]
 
         stdout: StdioCollector {
             onStreamFinished: root.backlightDevice = this.text.trim().replace(/[@/*=|]$/, "")
@@ -620,7 +621,8 @@ BarPill {
     Process {
         id: setBrightnessProc
 
-        command: root.pendingBrightness >= 0 && root.backlightDevice !== "" ? ["brightnessctl", "-d", root.backlightDevice, "set", root.pendingBrightness + "%"] : []
+        // brightness.sh falls back to logind when brightnessctl lacks write access
+        command: root.pendingBrightness >= 0 && root.backlightDevice !== "" ? [Quickshell.env("HOME") + "/.config/quickshell/lucidbar/brightness.sh", "-d", root.backlightDevice, "set", root.pendingBrightness + "%"] : []
         onExited: brightnessFile.reload()
     }
 
@@ -965,13 +967,6 @@ BarPill {
         path: root.backlightDevice ? "/sys/class/backlight/" + root.backlightDevice + "/brightness" : ""
         watchChanges: true
         onFileChanged: reload()
-    }
-
-    Timer {
-        interval: 500
-        repeat: true
-        running: root.backlightDevice !== ""
-        onTriggered: brightnessFile.reload()
     }
 
     compactContent: [

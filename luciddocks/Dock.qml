@@ -11,10 +11,24 @@ PanelWindow {
 
     property bool morphing: false
     property bool closingFromHidden: false
-    readonly property bool dockBusy: dockWindow.menuOpen || dockWindow.dragging || (dockWindow.morphing && !dockWindow.launcherFromHidden && !dockWindow.closingFromHidden)
+    readonly property bool dockBusy: dockWindow.menuOpen || dockWindow.dragging || contextMenu.menuVisible || stackPopup.popupVisible || (dockWindow.morphing && !dockWindow.launcherFromHidden && !dockWindow.closingFromHidden)
     property bool slidingAway: false
     readonly property bool heldByPointer: revealArea.containsMouse || (shellHover.hovered && !dockWindow.slidingAway)
-    readonly property bool dockRevealed: !Prefs.dockAutoHide || dockWindow.dockBusy || dockWindow.heldByPointer
+    readonly property bool canHide: Prefs.dockVisibilityMode !== "always"
+    readonly property bool dockRevealed: dockVisibility.revealed
+    SurfaceVisibility {
+        id: dockVisibility
+        mode: Prefs.dockEnabled ? Prefs.dockVisibilityMode : "always"
+        hovered: dockWindow.heldByPointer
+        busy: dockWindow.dockBusy
+        // Use the resting dock rectangle, never its animated/launcher bounds.
+        overlapping: mode === "dodge" && dockWindow.screen !== null && WindowOverlap.overlaps(dockWindow.screen, [{
+            x: (dockWindow.screen.width - shell.implicitWidth) / 2,
+            y: dockWindow.screen.height - Prefs.effectiveDockBottomMargin - shell.implicitHeight,
+            width: shell.implicitWidth,
+            height: shell.implicitHeight
+        }])
+    }
     property bool launcherFromHidden: false
     readonly property bool renderAsNotch: Prefs.dockNotch || dockWindow.launcherFromHidden
     readonly property int placementMargin: dockWindow.launcherFromHidden ? 0 : Prefs.effectiveDockBottomMargin
@@ -61,7 +75,9 @@ PanelWindow {
         dockWindow.pulseMorph();
         dockWindow.contentFadeDelay = dockWindow.menuOpen ? 190 : 0;
         if (dockWindow.menuOpen) {
-            dockWindow.launcherFromHidden = Prefs.dockAutoHide && !dockWindow.heldByPointer;
+            // menuOpen already holds the surface visible when this handler runs.
+            dockWindow.launcherFromHidden = dockWindow.canHide && !dockWindow.heldByPointer
+                && (Prefs.dockVisibilityMode === "auto" || dockVisibility.overlapping);
             dockWindow.closingFromHidden = false;
             dockWindow.snapPlacement = true;
             snapClear.restart();
@@ -721,9 +737,7 @@ PanelWindow {
             return;
         }
         var cmds = {
-            // Only ask uwsm to stop sessions it actually manages. `uwsm stop`
-            // may return success for an unmanaged session, skipping the fallback.
-            "logout": ["sh", "-c", "if uwsm check is-active >/dev/null 2>&1; then uwsm stop; else hyprctl dispatch 'hl.dsp.exit()' || hyprctl dispatch exit; fi"],
+            "logout": [Quickshell.env("HOME") + "/.config/quickshell/lucidbar/logout.sh"],
             "suspend": ["systemctl", "suspend"],
             "shutdown": ["systemctl", "poweroff"],
             "hibernate": ["systemctl", "hibernate"],
@@ -1020,9 +1034,9 @@ PanelWindow {
     // unplugged one is remapped rather than staying gone until a reload
     visible: Monitors.surfacesUp
     margins.bottom: 0
-    exclusiveZone: (!Prefs.loaded || !Prefs.dockEnabled || Prefs.dockAutoHide) ? 0 : (shell.implicitHeight + Prefs.effectiveDockBottomMargin)
+    exclusiveZone: (!Prefs.loaded || !Prefs.dockEnabled || dockWindow.canHide) ? 0 : (shell.implicitHeight + Prefs.effectiveDockBottomMargin)
     WlrLayershell.keyboardFocus: dockWindow.menuOpen ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
-    WlrLayershell.layer: dockWindow.menuOpen ? WlrLayer.Overlay : WlrLayer.Top
+    WlrLayershell.layer: (dockWindow.menuOpen || dockWindow.canHide) ? WlrLayer.Overlay : WlrLayer.Top
     color: "transparent"
     implicitWidth: Math.max(dockWindow.maxDockWidth, dockWindow.menuWidth)
     implicitHeight: dockWindow.menuMaxHeight + dockWindow.dragHeadroom
@@ -1170,8 +1184,8 @@ PanelWindow {
         height: dockWindow.dockRevealed ? dockWindow.placementMargin + 3 : 3
         hoverEnabled: true
         acceptedButtons: Qt.NoButton
-        enabled: Prefs.dockAutoHide
-        visible: Prefs.dockAutoHide
+        enabled: Prefs.dockEnabled && dockWindow.canHide
+        visible: enabled
     }
 
     StackPopup {
@@ -1300,7 +1314,7 @@ PanelWindow {
     Process {
         id: appScanner
 
-        command: ["sh", "-c", "for d in \"$HOME/.local/share/applications\" /usr/share/applications " + "/var/lib/flatpak/exports/share/applications \"$HOME/.local/share/flatpak/exports/share/applications\" " + "/var/lib/snapd/desktop/applications; do " + "[ -d \"$d\" ] && find \"$d\" -maxdepth 1 -name '*.desktop' -print0; " + "done | xargs -0 -r awk '" + "function clean(v) { gsub(/\\|/, \" \", v); gsub(/\\r/, \"\", v); return v } " + "function flush(   n, e) { " + "n = clean(name); e = clean(ex); " + "if (nodisp || hidden) return; " + "if (type != \"\" && type != \"Application\") return; " + "if (n == \"\" || e == \"\") return; " + "gsub(/ ?%[a-zA-Z]/, \"\", e); sub(/[ \\t]+$/, \"\", e); " + "if (term == \"true\") e = \"kitty -e \" e; " + "print n \"|\" clean(icon) \"|\" clean(kw \" \" gen \" \" com \" \" cats) \"|\" e \"|\" clean(wm) \"|\" base } " + "BEGINFILE { name=\"\"; icon=\"\"; ex=\"\"; kw=\"\"; gen=\"\"; com=\"\"; cats=\"\"; wm=\"\"; type=\"\"; term=\"\"; nodisp=0; hidden=0; insec=0; " + "base=FILENAME; sub(/.*\\//, \"\", base); sub(/\\.desktop$/, \"\", base) } " + "/^[ \\t]*\\[/ { insec = ($0 ~ /^\\[Desktop Entry\\]/) ? 1 : 0; next } " + "!insec { next } " + "/^Name=/ { if (name == \"\") name = substr($0, 6) } " + "/^Icon=/ { if (icon == \"\") icon = substr($0, 6) } " + "/^Exec=/ { if (ex == \"\") ex = substr($0, 6) } " + "/^Keywords=/ { if (kw == \"\") { kw = substr($0, 10); gsub(/;/, \" \", kw) } } " + "/^GenericName=/ { if (gen == \"\") gen = substr($0, 13) } " + "/^Comment=/ { if (com == \"\") com = substr($0, 9) } " + "/^Categories=/ { if (cats == \"\") { cats = substr($0, 12); gsub(/;/, \" \", cats) } } " + "/^StartupWMClass=/ { if (wm == \"\") wm = substr($0, 16) } " + "/^Type=/ { if (type == \"\") type = substr($0, 6) } " + "/^Terminal=/ { if (term == \"\") term = substr($0, 10) } " + "/^NoDisplay=true/ { nodisp = 1 } " + "/^Hidden=true/ { hidden = 1 } " + "ENDFILE { flush() }'"]
+        command: ["sh", "-c", "for d in /usr/share/applications \"$HOME/.local/share/applications\" " + "/var/lib/flatpak/exports/share/applications \"$HOME/.local/share/flatpak/exports/share/applications\" " + "/var/lib/snapd/desktop/applications; do " + "[ -d \"$d\" ] && find \"$d\" -maxdepth 1 -name '*.desktop' -print0; " + "done | xargs -0 -r awk '" + "function clean(v) { gsub(/\\|/, \" \", v); gsub(/\\r/, \"\", v); return v } " + "function flush(   n, e) { " + "n = clean(name); e = clean(ex); " + "if (nodisp || hidden) return; " + "if (type != \"\" && type != \"Application\") return; " + "if (n == \"\" || e == \"\") return; " + "gsub(/ ?%[a-zA-Z]/, \"\", e); sub(/[ \\t]+$/, \"\", e); " + "if (term == \"true\") e = \"kitty -e \" e; " + "print n \"|\" clean(icon) \"|\" clean(kw \" \" gen \" \" com \" \" cats) \"|\" e \"|\" clean(wm) \"|\" base } " + "BEGINFILE { name=\"\"; icon=\"\"; ex=\"\"; kw=\"\"; gen=\"\"; com=\"\"; cats=\"\"; wm=\"\"; type=\"\"; term=\"\"; nodisp=0; hidden=0; insec=0; " + "base=FILENAME; sub(/.*\\//, \"\", base); sub(/\\.desktop$/, \"\", base) } " + "/^[ \\t]*\\[/ { insec = ($0 ~ /^\\[Desktop Entry\\]/) ? 1 : 0; next } " + "!insec { next } " + "/^Name=/ { if (name == \"\") name = substr($0, 6) } " + "/^Icon=/ { if (icon == \"\") icon = substr($0, 6) } " + "/^Exec=/ { if (ex == \"\") ex = substr($0, 6) } " + "/^Keywords=/ { if (kw == \"\") { kw = substr($0, 10); gsub(/;/, \" \", kw) } } " + "/^GenericName=/ { if (gen == \"\") gen = substr($0, 13) } " + "/^Comment=/ { if (com == \"\") com = substr($0, 9) } " + "/^Categories=/ { if (cats == \"\") { cats = substr($0, 12); gsub(/;/, \" \", cats) } } " + "/^StartupWMClass=/ { if (wm == \"\") wm = substr($0, 16) } " + "/^Type=/ { if (type == \"\") type = substr($0, 6) } " + "/^Terminal=/ { if (term == \"\") term = substr($0, 10) } " + "/^NoDisplay=true/ { nodisp = 1 } " + "/^Hidden=true/ { hidden = 1 } " + "ENDFILE { flush() }'"]
 
         stdout: StdioCollector {
             onStreamFinished: {
@@ -1943,7 +1957,7 @@ PanelWindow {
         height: dockWindow.dragging ? dockWindow.height : shell.height
 
         Region {
-            item: Prefs.dockAutoHide ? revealArea : null
+            item: revealArea.enabled ? revealArea : null
         }
 
     }

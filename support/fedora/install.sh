@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Lucid installer — Arch Linux + Hyprland
+# Lucid installer — Fedora + Hyprland
 #
 # installs dependencies, places the shell at ~/.config/quickshell, and sets up
 # the full bundle: the Hyprland config (binds, window rules, blur, autostart),
@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 # the VERSION file ships inside the shell tree, so the installed copy can tell
 # the update check which version it is. bump it to cut a release
 VERSION="unknown"
@@ -43,7 +43,7 @@ usage() {
     cat <<EOF
 ${b}Lucid $VERSION installer${r}
 
-  ./install.sh [options]
+  ./support/fedora/install.sh [options]
 
   --no-theming   skip the palette layer; leave ~/.config/lucid
                  and ~/.config/matugen untouched
@@ -92,21 +92,18 @@ ask() {
 
 step "Checking the system"
 
-[[ -f /etc/arch-release ]] || die "this installer is Arch-only. see the README for a manual install."
-command -v pacman &>/dev/null || die "pacman not found"
+OS_ID=$([[ -r /etc/os-release ]] && . /etc/os-release; printf '%s' "${ID:-}")
+[[ "$OS_ID" == fedora ]] || die "this installer is for Fedora; use install.sh on Arch or support/ubuntu/install.sh on Ubuntu."
+[[ ! -e /run/ostree-booted ]] || die "Fedora Atomic desktops need a manual install; this installer uses DNF."
+command -v dnf &>/dev/null || die "dnf not found"
+command -v rpm &>/dev/null || die "rpm not found"
 [[ $EUID -ne 0 ]] || die "don't run this as root — it installs into your home directory"
-[[ -f "$SRC/shell.qml" ]] || die "run this from inside the Lucid repo (no shell.qml next to install.sh)"
+[[ -f "$SRC/shell.qml" ]] || die "run this from inside the Lucid repo (no shell.qml at its root)"
 
 command -v Hyprland &>/dev/null || command -v hyprctl &>/dev/null \
     || warn "Hyprland not found. Lucid uses Hyprland-specific APIs and will not work under another compositor."
 
-AUR=""
-for helper in paru yay; do
-    command -v "$helper" &>/dev/null && { AUR="$helper"; break; }
-done
-
-say "  arch linux      ${grn}ok${r}"
-say "  aur helper      ${AUR:-${ylw}none${r}}"
+say "  distribution    Fedora ${grn}ok${r}"
 say "  install target  $SHELL_DIR"
 say "  theming layer   $([[ $WITH_THEMING -eq 1 ]] && echo yes || echo 'no (--no-theming)')"
 say "  hyprland config $([[ $WITH_HYPR   -eq 1 ]] && echo yes || echo 'no (--no-hypr)')"
@@ -115,82 +112,45 @@ say "  wallpapers      $([[ $WITH_WALLPAPERS -eq 1 ]] && echo yes || echo 'no (-
 
 # ------------------------------------------------------------- dependencies
 
-# required — the shell will not start or will visibly break without these
-PKG_REQUIRED=(quickshell qt6-5compat qt6-declarative qt6-multimedia)
-# each of these backs one feature; missing ones degrade that feature only
+# Fedora uses RPM names and only the user's enabled repositories. Optional
+# packages absent from those repositories are reported without adding sources.
+PKG_REQUIRED=(quickshell qt6-qt5compat qt6-qtdeclarative qt6-qtmultimedia)
 PKG_FEATURES=(
-    matugen jq imagemagick
-    networkmanager bluez bluez-utils
-    kdeconnect python-gobject
-    libpulse wireplumber brightnessctl upower hypridle
-    grim wf-recorder ffmpeg wl-clipboard wtype cliphist
-    tesseract tesseract-data-eng hyprpicker
-    python-pillow python-numpy python-fonttools
-    cava songrec curl libnotify awww fastfetch
-    python-pywal noto-fonts-emoji
-    # the shell is the session's own polkit agent; polkitd and its setuid
-    # helper are the backend it drives
-    xdg-utils zenity swappy polkit
-    # the accounts page reads and writes users through this, and asks the
-    # shell's polkit dialog whenever a change needs an administrator
-    accountsservice
-    # the environment page writes the desktop's appearance through these, and
-    # the file chooser kde connect sends files with comes from the gtk portal.
-    # librsvg renders a cursor theme again when its shadow is turned off
-    gsettings-desktop-schemas qt6ct xdg-desktop-portal-gtk librsvg
+    matugen jq ImageMagick NetworkManager bluez kde-connect python3-gobject
+    pulseaudio-utils wireplumber brightnessctl upower hypridle
+    grim wf-recorder ffmpeg-free wl-clipboard wtype cliphist
+    tesseract tesseract-langpack-eng hyprpicker
+    python3-pillow python3-numpy python3-fonttools
+    cava songrec curl libnotify awww fastfetch python3-pywal
+    google-noto-color-emoji-fonts xdg-utils zenity swappy polkit
+    accountsservice gsettings-desktop-schemas qt6ct xdg-desktop-portal-gtk
+    librsvg2-tools
 )
-# invoked by the shipped Hyprland binds and the Lucid look. without these the
-# config installs fine but its keys do nothing and the prompt renders as boxes
 PKG_HYPR=(
-    kitty nautilus playerctl gnome-calculator
-    starship fish ttf-jetbrains-mono-nerd adw-gtk-theme papirus-icon-theme
+    kitty nautilus playerctl gnome-calculator starship fish
+    jetbrains-mono-fonts adw-gtk3-theme papirus-icon-theme
 )
-# the dock's default pins. these are the apps Lucid ships pinned, so the dock
-# is not a row of blank letter tiles on a fresh install. --no-apps skips them.
-# order matches the dock; steam is filtered out below unless multilib is on
-PKG_DOCK=(
-    zen-browser-bin vscodium-bin vesktop
-    spotify proton-vpn-gtk-app steam
-)
-# a package already covered by an equivalent one the user chose themselves.
-# without this a re-run keeps trying to install vscodium-bin over vscodium
+PKG_DOCK=(zen-browser codium vesktop spotify-client proton-vpn-gnome-desktop steam)
 declare -A PKG_ALTS=(
-    [vscodium-bin]="vscodium vscodium-git visual-studio-code-bin code"
-    [zen-browser-bin]="zen-browser zen-browser-avx2-bin"
-    [vesktop]="vesktop-bin discord"
-    [spotify]="spotify-launcher"
-    [ttf-jetbrains-mono-nerd]="nerd-fonts ttf-jetbrains-mono"
-    [adw-gtk-theme]="adw-gtk3 adw-gtk3-git"
+    [codium]="code vscodium"
+    [spotify-client]="spotify"
+    [vesktop]="discord"
+    [ffmpeg-free]="ffmpeg"
+    [curl]="curl-minimal"
     [qt6ct]="qt6ct-kde"
     [xdg-desktop-portal-gtk]="xdg-desktop-portal-gnome xdg-desktop-portal-kde"
 )
 
-# a couple of the dock's AUR packages need something in place before the build
-# will even start. without this the package silently drops out of the install
-# with a warning, and the dock is left drawing a blank letter tile for it.
-SPOTIFY_KEY=E1096BCBFF6D418796DE78515384CE82BA52C83A
-aur_prepare() {
-    # the spotify PKGBUILD verifies its .deb against Spotify's own signing
-    # key. that key ships in nobody's keyring, so a fresh machine fails with
-    # "unknown public key" every time. import it first; the download server is
-    # the PKGBUILD's own, with a keyserver as the fallback
-    [[ "$1" == spotify ]] || return 0
-    gpg --list-keys "$SPOTIFY_KEY" &>/dev/null && return 0
-    say "  importing Spotify's package signing key"
-    if curl -sS https://download.spotify.com/debian/pubkey_5384CE82BA52C83A.gpg 2>/dev/null \
-         | gpg --import - &>/dev/null; then
-        return 0
-    fi
-    gpg --keyserver keyserver.ubuntu.com --recv-keys "$SPOTIFY_KEY" &>/dev/null \
-        || warn "  could not import Spotify's signing key — the build may fail"
+# true when the package, or anything standing in for it, is installed
+pkg_installed() {
+    rpm -q "$1" &>/dev/null
 }
 
-# true when the package, or anything standing in for it, is installed
 have_pkg() {
-    pacman -Qq "$1" &>/dev/null && return 0
+    pkg_installed "$1" && return 0
     local alt
     for alt in ${PKG_ALTS[$1]:-}; do
-        pacman -Qq "$alt" &>/dev/null && return 0
+        pkg_installed "$alt" && return 0
     done
     return 1
 }
@@ -200,31 +160,11 @@ DEPS_OK=1
 
 step "Resolving dependencies"
 
-# a never-synced pacman database makes every -Si lookup fail, so real repo
-# packages get misread as AUR and nothing installs. check against a package
-# that is guaranteed present rather than trusting the db exists.
-if ! pacman -Si bash &>/dev/null; then
-    warn "your pacman database is empty or stale — package lookups will fail."
-    warn "run this first, then re-run the installer:"
-    warn "    sudo pacman -Syu"
-    if ! ask "  Continue anyway (dependencies will likely be skipped)?"; then
-        die "stopped. run 'sudo pacman -Syu' and try again."
-    fi
-fi
-
 WANTED=("${PKG_REQUIRED[@]}" "${PKG_FEATURES[@]}")
 [[ $WITH_HYPR -eq 1 || $WITH_LOOK -eq 1 ]] && WANTED+=("${PKG_HYPR[@]}")
 
 if [[ $WITH_APPS -eq 1 ]]; then
-    for p in "${PKG_DOCK[@]}"; do
-        # steam lives in multilib. with that repo off the lookup fails, the
-        # name gets misread as an AUR package and the build fails much later
-        if [[ "$p" == steam ]] && ! grep -q '^\[multilib\]' /etc/pacman.conf 2>/dev/null; then
-            say "  ${dim}skipping steam — the multilib repo is not enabled${r}"
-            continue
-        fi
-        WANTED+=("$p")
-    done
+    WANTED+=("${PKG_DOCK[@]}")
 fi
 
 for p in "${WANTED[@]}"; do
@@ -240,13 +180,25 @@ elif [[ $SKIP_DEPS -eq 1 ]]; then
 else
     # split by what the configured repos actually carry, so one unresolvable
     # name can never take the whole batch down with it
-    from_repo=(); from_aur=()
+    from_repo=(); unavailable=()
+    # An unmatched repoquery exits successfully with empty output. Match
+    # exact returned names instead of relying on its exit status alone.
+    available=$(dnf -q repoquery --available --queryformat '%{name}\n' "${missing[@]}") \
+        || die "could not query Fedora repositories; check DNF and try again, or use --skip-deps."
     for p in "${missing[@]}"; do
-        if pacman -Si "$p" &>/dev/null; then from_repo+=("$p"); else from_aur+=("$p"); fi
+        if grep -qxF -- "$p" <<< "$available"; then
+            from_repo+=("$p")
+        else
+            unavailable+=("$p")
+        fi
     done
+    if (( ${#unavailable[@]} )); then
+        DEPS_OK=0
+        warn "not available in your enabled repositories: ${unavailable[*]}"
+        warn "install these separately if needed; no additional repositories will be enabled."
+    fi
 
     [[ ${#from_repo[@]} -gt 0 ]] && say "  from the repos: ${from_repo[*]}"
-    [[ ${#from_aur[@]}  -gt 0 ]] && say "  not in your repos, will try the aur: ${from_aur[*]}"
 
     # the dock apps are the bulk of the download and the part people are most
     # likely to want out of, so name them rather than burying them in the list
@@ -256,30 +208,18 @@ else
     done
     if (( ${#dock_missing[@]} )); then
         say "  ${dim}of those, the dock's default apps: ${dock_missing[*]}${r}"
-        say "  ${dim}(several GB, mostly from the aur — pass --no-apps to skip them)${r}"
+        say "  ${dim}(can be several GB — pass --no-apps to skip them)${r}"
     fi
 
-    if ask "  install these now?"; then
+    if (( ${#from_repo[@]} == 0 )); then
+        warn "none of the missing packages can be installed from your configured sources."
+    elif ask "  install these now?"; then
         if [[ ${#from_repo[@]} -gt 0 ]]; then
-            if sudo pacman -S --needed --noconfirm "${from_repo[@]}"; then
+            if sudo dnf install -y "${from_repo[@]}"; then
                 say "  repo packages installed"
             else
                 DEPS_OK=0
                 warn "some repo packages failed to install — continuing anyway"
-            fi
-        fi
-        if [[ ${#from_aur[@]} -gt 0 ]]; then
-            if [[ -n "$AUR" ]]; then
-                # one at a time: a single bad name shouldn't block the rest
-                for p in "${from_aur[@]}"; do
-                    aur_prepare "$p"
-                    "$AUR" -S --needed --noconfirm "$p" || {
-                        DEPS_OK=0; warn "could not install $p"
-                    }
-                done
-            else
-                DEPS_OK=0
-                warn "no AUR helper (paru/yay) — install manually: ${from_aur[*]}"
             fi
         fi
     else
@@ -335,6 +275,12 @@ if [[ -f "$SRC/support/lucid/launch-shell.sh" ]]; then
 else
     warn "support/lucid/launch-shell.sh missing, autostart will run quickshell directly"
 fi
+
+# Both session actions are used by the shared QML on every distribution.
+mkdir -p "$LUCID_DIR"
+install -m755 "$SRC/support/lucid/logout.sh" "$LUCID_DIR/logout.sh"
+install -m755 "$SRC/support/lucid/brightness.sh" "$LUCID_DIR/brightness.sh"
+say "  session helpers -> $LUCID_DIR"
 
 # state files. a re-run keeps your settings: anything already in place wins,
 # then whatever the previous install left in the backup, and only failing both
@@ -816,8 +762,7 @@ if [[ $WITH_THEMING -eq 1 ]]; then
             fi
         }
 
-        # FairyWren is not in the repos and the AUR build slices it into 52
-        # per-colour themes with different names, so take it from upstream:
+        # FairyWren is not in the enabled repositories, so take it from upstream:
         # the two directories there are exactly the theme names set below
         ICONS_DIR="$HOME/.local/share/icons"
         if [[ -d "$ICONS_DIR/$ICON_THEME_NAME" ]]; then
@@ -1171,7 +1116,7 @@ else
     bind = SUPER, comma,  exec, qs ipc call -- settings open
 
   Keep the double dash: it is required whenever a call takes an argument.
-  Or run ${b}./install.sh --with-hypr${r} to take Lucid's config wholesale.
+  Or run ${b}./support/fedora/install.sh --with-hypr${r} to take Lucid's config wholesale.
 
 EOF
 fi

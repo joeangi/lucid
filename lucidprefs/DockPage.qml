@@ -139,14 +139,16 @@ Column {
         }
 
         SettingRow {
-            title: "Auto-hide"
-            description: "The dock slides off the bottom of the screen and comes back when the pointer reaches the edge."
+            title: "Visibility"
+            resetKey: "dockVisibility"
+            description: "Always visible reserves space. Auto-hide reveals at the bottom edge. Dodge windows hides only when a visible window overlaps the dock; touch the bottom edge to bring it back."
+            stacked: true
 
-            M3Switch {
-                checked: Prefs.dockAutoHide
-                onToggled: (v) => {
-                    return Prefs.dockAutoHide = v;
-                }
+            M3Segmented {
+                width: parent.width
+                current: Prefs.dockVisibilityMode
+                options: [{ key: "always", label: "Always visible" }, { key: "auto", label: "Auto-hide" }, { key: "dodge", label: "Dodge windows" }]
+                onChosen: key => Prefs.dockVisibility = key
             }
 
         }

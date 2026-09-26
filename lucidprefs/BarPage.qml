@@ -23,6 +23,20 @@ Column {
         title: "OPENING BEHAVIOUR"
 
         SettingRow {
+            title: "Visibility"
+            resetKey: "barVisibility"
+            description: "Always visible reserves space. Auto-hide reveals at the top edge. Dodge windows hides the bar when a visible window overlaps one of its modules; touch the top edge to bring it back."
+            stacked: true
+
+            M3Segmented {
+                width: parent.width
+                current: Prefs.barVisibilityMode
+                options: [{ key: "always", label: "Always visible" }, { key: "auto", label: "Auto-hide" }, { key: "dodge", label: "Dodge windows" }]
+                onChosen: key => Prefs.barVisibility = key
+            }
+        }
+
+        SettingRow {
             title: "Pop-up mode"
             description: "Modules stop morphing their own pill into a panel. The pill stays put in the bar and the panel appears below it as a detached pop-up."
 

@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import "VisibilityLogic.js" as VisibilityLogic
 pragma Singleton
 
 Singleton {
@@ -154,6 +155,10 @@ Singleton {
     property alias barNotchFlare: s.barNotchFlare
     property alias dockNotchFlare: s.dockNotchFlare
     property alias dockAutoHide: s.dockAutoHide
+    property alias dockVisibility: s.dockVisibility
+    property alias barVisibility: s.barVisibility
+    readonly property string dockVisibilityMode: VisibilityLogic.visibilityMode(root.dockVisibility, root.dockAutoHide)
+    readonly property string barVisibilityMode: VisibilityLogic.visibilityMode(root.barVisibility, false)
     property alias dockShowIndicators: s.dockShowIndicators
     property alias dockShowTooltips: s.dockShowTooltips
     property alias dockShowRunning: s.dockShowRunning
@@ -366,6 +371,8 @@ Singleton {
         "barNotchFlare": 14,
         "dockNotchFlare": 14,
         "dockAutoHide": false,
+        "dockVisibility": "always",
+        "barVisibility": "always",
         "dockShowIndicators": true,
         "dockShowTooltips": true,
         "dockShowRunning": true,
@@ -705,8 +712,15 @@ Singleton {
         watchChanges: true
         onFileChanged: reload()
         onAdapterUpdated: writeDebounce.restart()
-        onLoaded: root.loaded = true
-        onLoadFailed: root.loaded = true
+        function finishLoading() {
+            // Empty marks a pre-visibility-mode settings file. Carry its old
+            // auto-hide choice forward once, before persisting the new schema.
+            if (s.dockVisibility === "")
+                root.dockVisibility = root.dockAutoHide ? "auto" : "always";
+            root.loaded = true;
+        }
+        onLoaded: finishLoading()
+        onLoadFailed: finishLoading()
 
         adapter: JsonAdapter {
             id: s
@@ -792,6 +806,8 @@ Singleton {
             property int barNotchFlare: 14
             property int dockNotchFlare: 14
             property bool dockAutoHide: false
+            property string dockVisibility: ""
+            property string barVisibility: "always"
             property bool dockShowIndicators: true
             property bool dockShowTooltips: true
             property bool dockShowRunning: true

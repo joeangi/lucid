@@ -241,6 +241,11 @@ def detect(root):
 
 
 # ---- wallpapers ---------------------------------------------------------
+# Installed next to this script; checkout development uses lucidprefs/.
+if not os.path.isfile(os.path.join(os.path.dirname(__file__), 'install_journal.py')):
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../lucidprefs')))
+from install_journal import managed_paths
+
 def copy_wallpapers(root, dest):
     """Only images that are plausibly wallpapers. A scheme repo's images are
     usually previews and logos, and importing those as wallpapers would be
@@ -254,11 +259,13 @@ def copy_wallpapers(root, dest):
         # an image-dominated repo is a wallpaper repo
         if len(big) >= 3 and len(big) >= len(list(walk(root))) * 0.25:
             wallish = big
-    os.makedirs(dest, exist_ok=True)
     n = 0
     for p in sorted(wallish)[:60]:
         try:
-            shutil.copy2(p, os.path.join(dest, os.path.basename(p)))
+            target = os.path.join(dest, os.path.basename(p))
+            with managed_paths([target]):
+                os.makedirs(dest, exist_ok=True)
+                shutil.copy2(p, target)
             n += 1
         except OSError:
             pass

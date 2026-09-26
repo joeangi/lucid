@@ -1,0 +1,1 @@
+../../lucidbar/logout.sh

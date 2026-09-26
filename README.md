@@ -20,7 +20,7 @@ your wallpaper.
 
 <p>
   <img alt="Version" src="https://img.shields.io/badge/VERSION-v1.10.5-FF7F50?style=for-the-badge&labelColor=14100E">
-  <img alt="Platform" src="https://img.shields.io/badge/PLATFORM-ARCH%20LINUX%20%2F%20FEDORA-FFAB91?style=for-the-badge&logo=archlinux&logoColor=FFAB91&labelColor=14100E">
+  <img alt="Platform" src="https://img.shields.io/badge/PLATFORM-ARCH%20LINUX-FFAB91?style=for-the-badge&logo=archlinux&logoColor=FFAB91&labelColor=14100E">
   <img alt="Compositor" src="https://img.shields.io/badge/COMPOSITOR-HYPRLAND-80CBC4?style=for-the-badge&labelColor=14100E">
   <a href="https://quickshell.org"><img alt="Built on Quickshell" src="https://img.shields.io/badge/BUILT%20ON-QUICKSHELL-FFC46B?style=for-the-badge&labelColor=14100E"></a>
 </p>
@@ -43,7 +43,12 @@ your wallpaper.
 
 ## Install
 
-Lucid installs to `~/.config/quickshell` and needs **Arch Linux or Fedora** and
+The commands below are the upstream Arch Linux flow. This fork keeps its
+other distributions separate: [Ubuntu 26.04](docs/install-ubuntu.md) uses
+`./support/ubuntu/install.sh`, and [conventional Fedora](docs/install-fedora.md) uses
+`./support/fedora/install.sh`. Use the matching uninstall command for each system.
+
+Lucid installs to `~/.config/quickshell` and needs **Arch Linux** and
 **Hyprland**. Three commands:
 
 ```sh
@@ -52,40 +57,15 @@ cd lucid
 ./install.sh
 ```
 
-### Fedora
-
-The installer supports conventional DNF-based Fedora installations; Fedora
-Atomic desktops require manual setup. Install Hyprland before running Lucid
-and log into a Hyprland session. Lucid does not run as a GNOME or KDE shell.
-The bundled Lua configuration needs Hyprland 0.55 or newer; use `--no-hypr`
-to keep your existing configuration.
-
-Fedora's required packages are `quickshell`, `qt6-qt5compat`,
-`qt6-qtdeclarative` and `qt6-qtmultimedia`. The installer checks installed
-packages with RPM and resolves missing packages using
-[DNF repoquery](https://dnf5.readthedocs.io/en/stable/commands/repoquery.8.html).
-Package availability depends on your Fedora release and enabled repositories.
-If a required package is missing, install it before launching the shell.
-
-Optional tools and dock apps missing from your repositories are reported for
-manual installation. Fedora uses `ffmpeg-free` (or an installed `ffmpeg`);
-available recording codecs depend on that build. The bundled look uses
-JetBrainsMono Nerd Font; Fedora's `jetbrains-mono-fonts` supplies the base font,
-so install the Nerd Font separately for all prompt glyphs. `--skip-deps` skips
-package installation but **still installs Lucid and changes configuration**.
-
-### Installer steps
-
 That's it — the installer does the rest:
 
 1. **Checks your system** — refuses to run anywhere it can't finish the job,
    rather than leaving you half-installed.
-2. **Installs dependencies** — uses `pacman` and `paru`/`yay` on Arch, or
-   `dnf` on Fedora. It lists everything and asks before touching your system.
-   Say no and it carries on, telling you which features won't work.
-   This includes the apps Lucid ships pinned to the dock — potentially several
-   GB. On Fedora, packages unavailable in enabled repositories are listed and
-   skipped; no additional repositories are enabled. `--no-apps` skips dock apps.
+2. **Installs dependencies** — finds `paru` or `yay` and uses it, falling back
+   to `pacman` for repo packages. It lists everything and asks before touching
+   your system. Say no and it carries on, telling you which features won't work.
+   This includes the apps Lucid ships pinned to the dock — several GB, mostly
+   from the AUR. `--no-apps` skips them.
 3. **Copies the shell** to `~/.config/quickshell`, moving any existing config to
    `~/.config/quickshell.backup-<timestamp>` first.
 4. **Sets up Hyprland** — `hyprland.lua` and its modules: the keybinds, the
@@ -673,18 +653,12 @@ python3 ~/.config/lucid/add-theme.py <repo-url> [--list] [--variant <name>] [--n
 
 ## Requirements
 
-Arch Linux or Fedora, with Hyprland. The installer handles the packages below, so
+Arch Linux and Hyprland. The installer handles all of this, listed here so
 you know what's being pulled in.
 
 **Required** — the shell won't start without these:
 
-Arch: `quickshell` · `qt6-5compat` · `qt6-declarative` · `qt6-multimedia`
-
-Fedora: `quickshell` · `qt6-qt5compat` · `qt6-qtdeclarative` · `qt6-qtmultimedia`
-
-The package names below are for Arch; the installer uses Fedora equivalents
-where available (for example `python3-gobject`, `kde-connect`,
-`pulseaudio-utils`, and `google-noto-color-emoji-fonts`).
+`quickshell` · `qt6-5compat` · `qt6-declarative` · `qt6-multimedia`
 
 **Per feature** — a missing one breaks only its own feature:
 
@@ -740,8 +714,7 @@ GB, mostly from the AUR:
 
 Anything you already have an equivalent of is left alone — `vscodium` counts
 for `vscodium-bin`, `discord` for `vesktop`, and so on. `steam` is skipped
-unless the `multilib` repo is enabled on Arch. Fedora installs only dock RPMs
-available from enabled repositories; unavailable apps are listed and skipped.
+unless the `multilib` repo is enabled.
 
 Lucid uses Hyprland-specific APIs for workspaces and window management. It
 will not work on other compositors.
@@ -797,6 +770,10 @@ Every surface is scriptable. `qs ipc call -- <target> <function> [arg]`:
 | `debug` | `toggle` `on` `off` — draws input and blur region outlines |
 
 ## Uninstall
+
+These steps describe Arch Linux. For Ubuntu use `./support/ubuntu/uninstall.sh` and
+the [Ubuntu restoration guide](docs/install-ubuntu.md#uninstall); for Fedora
+use `./support/fedora/uninstall.sh` and the [Fedora guide](docs/install-fedora.md#uninstall).
 
 ```sh
 ./uninstall.sh

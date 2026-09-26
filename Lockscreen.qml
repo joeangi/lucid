@@ -609,9 +609,7 @@ Singleton {
 
     function runPower(id) {
         var cmds = {
-            // Only ask uwsm to stop sessions it actually manages. `uwsm stop`
-            // may return success for an unmanaged session, skipping the fallback.
-            "logout": ["sh", "-c", "if uwsm check is-active >/dev/null 2>&1; then uwsm stop; else hyprctl dispatch 'hl.dsp.exit()' || hyprctl dispatch exit; fi"],
+            "logout": [Quickshell.env("HOME") + "/.config/quickshell/lucidbar/logout.sh"],
             "suspend": ["systemctl", "suspend"],
             "shutdown": ["systemctl", "poweroff"],
             "hibernate": ["systemctl", "hibernate"],
