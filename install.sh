@@ -1235,6 +1235,20 @@ else
     warn "support/lucid/launch-shell.sh missing, autostart will run quickshell directly"
 fi
 
+if [[ -f "$SRC/support/lucid/logout.sh" ]]; then
+    mkdir -p "$LUCID_DIR"
+    install -m755 "$SRC/support/lucid/logout.sh" "$LUCID_DIR/logout.sh"
+    say "  logout helper -> $LUCID_DIR/logout.sh"
+fi
+
+# the brightness slider and keys go through this, so it sits beside the
+# launcher for the same reason: the shell needs it with or without the hypr config
+if [[ -f "$SRC/support/lucid/brightness.sh" ]]; then
+    mkdir -p "$LUCID_DIR"
+    install -m755 "$SRC/support/lucid/brightness.sh" "$LUCID_DIR/brightness.sh"
+    say "  brightness helper -> $LUCID_DIR/brightness.sh"
+fi
+
 # state files. a re-run keeps your settings: anything already in place wins,
 # then whatever the previous install left in the backup, and only failing both
 # does the shipped default get written
@@ -1560,6 +1574,12 @@ if [[ $WITH_HYPR -eq 1 ]]; then
         mkdir -p "$LUCID_DIR"
         if [[ -s "$LUCID_DIR/keybinds.json" ]]; then
             say "  ${dim}keeping existing $LUCID_DIR/keybinds.json${r}"
+            # older lists called brightnessctl directly, which fails without
+            # the video group. only the stock commands move to the helper
+            if grep -q '"cmd": "brightnessctl -e4 -n2 set 5%[+-]"' "$LUCID_DIR/keybinds.json"; then
+                sed -i 's|"cmd": "brightnessctl -e4 -n2 set 5%\([+-]\)"|"cmd": "$HOME/.config/lucid/brightness.sh -e4 -n2 set 5%\1"|' "$LUCID_DIR/keybinds.json"
+                say "  brightness binds now go through $LUCID_DIR/brightness.sh"
+            fi
         else
             cp "$SRC/support/hypr/keybinds.json" "$LUCID_DIR/keybinds.json"
             say "  keybinds -> $LUCID_DIR/keybinds.json"

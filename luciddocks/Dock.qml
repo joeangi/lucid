@@ -737,8 +737,7 @@ PanelWindow {
             return;
         }
         var cmds = {
-            // uwsm only stops a session it started, so fall back to hyprland
-            "logout": ["sh", "-c", "uwsm stop 2>/dev/null || hyprctl dispatch exit"],
+            "logout": [Quickshell.env("HOME") + "/.config/lucid/logout.sh"],
             "suspend": ["systemctl", "suspend"],
             "shutdown": ["systemctl", "poweroff"],
             "hibernate": ["systemctl", "hibernate"],
