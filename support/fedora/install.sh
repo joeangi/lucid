@@ -32,6 +32,7 @@ HYPR_FORCE=0
 HYPR_LUA_INSTALLED=0
 ASSUME_YES=0
 SKIP_DEPS=0
+CHECK_ONLY=0
 
 b=$'\e[1m'; dim=$'\e[2m'; red=$'\e[31m'; grn=$'\e[32m'; ylw=$'\e[33m'; r=$'\e[0m'
 say()  { printf '%s\n' "$*"; }
@@ -58,7 +59,8 @@ ${b}Lucid $VERSION installer${r}
                  ~/Pictures/wallpapers
   --with-hypr    reinstall Lucid's Hyprland config even when one
                  is already in place
-  --skip-deps    don't install packages, only check for them
+  --skip-deps    skip packages but still install Lucid
+  --check        report missing dependencies without changing anything
   -y, --yes      don't prompt, accept every default
   -h, --help     this message
 EOF
@@ -74,6 +76,7 @@ while [[ $# -gt 0 ]]; do
         --no-wallpapers) WITH_WALLPAPERS=0 ;;
         --with-hypr)  WITH_HYPR=1; HYPR_FORCE=1 ;;
         --skip-deps)  SKIP_DEPS=1 ;;
+        --check)      CHECK_ONLY=1 ;;
         -y|--yes)     ASSUME_YES=1 ;;
         -h|--help)    usage ;;
         *) die "unknown option: $1 (try --help)" ;;
@@ -170,6 +173,32 @@ fi
 for p in "${WANTED[@]}"; do
     have_pkg "$p" || missing+=("$p")
 done
+
+if [[ $CHECK_ONLY -eq 1 ]]; then
+    required_missing=()
+    other_missing=()
+    for p in "${missing[@]}"; do
+        if [[ " ${PKG_REQUIRED[*]} " == *" $p "* ]]; then
+            required_missing+=("$p")
+        else
+            other_missing+=("$p")
+        fi
+    done
+    if (( ${#required_missing[@]} )); then
+        warn "required packages missing: ${required_missing[*]}"
+    else
+        say "  required packages are installed"
+    fi
+    if (( ${#other_missing[@]} )); then
+        say "  other packages missing: ${other_missing[*]}"
+    else
+        say "  other selected packages are installed"
+    fi
+    if (( ${#required_missing[@]} )); then
+        exit 1
+    fi
+    exit 0
+fi
 
 if [[ ${#missing[@]} -eq 0 ]]; then
     say "  everything is already installed"

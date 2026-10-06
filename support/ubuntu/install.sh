@@ -1580,6 +1580,12 @@ if [[ $WITH_HYPR -eq 1 ]]; then
                 sed -i 's|"cmd": "brightnessctl -e4 -n2 set 5%\([+-]\)"|"cmd": "$HOME/.config/quickshell/lucidbar/brightness.sh -e4 -n2 set 5%\1"|' "$LUCID_DIR/keybinds.json"
                 say "  brightness binds now go through $SHELL_DIR/lucidbar/brightness.sh"
             fi
+            # older lists exited with the hyprlang dispatcher, which a Lua
+            # config rejects, so SUPER+M did nothing
+            if grep -q 'hyprshutdown || hyprctl dispatch exit"' "$LUCID_DIR/keybinds.json"; then
+                sed -i "s#hyprshutdown || hyprctl dispatch exit\"#hyprshutdown || hyprctl dispatch 'hl.dsp.exit()' || hyprctl dispatch exit\"#" "$LUCID_DIR/keybinds.json"
+                say "  exit bind now uses the Lua dispatcher"
+            fi
         else
             cp "$SRC/support/hypr/keybinds.json" "$LUCID_DIR/keybinds.json"
             say "  keybinds -> $LUCID_DIR/keybinds.json"

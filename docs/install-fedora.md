@@ -12,12 +12,22 @@ cd lucid
 ./support/fedora/install.sh
 ```
 
+Check installed dependencies without changing the system first:
+
+```sh
+./support/fedora/install.sh --check
+```
+
+The check exits unsuccessfully if a required package is missing. It also lists
+missing feature packages and dock apps. It does not test the graphical session
+or whether missing packages are available in enabled repositories.
+
 The Fedora installer uses only your enabled DNF repositories. It checks for
 Quickshell and the Fedora Qt packages (`qt6-qt5compat`, `qt6-qtdeclarative`,
 `qt6-qtmultimedia`), then lists unavailable optional packages and dock apps
 without enabling another repository. `--no-apps` skips the dock apps;
-`--skip-deps` checks dependencies without installing packages, but still
-installs Lucid and changes configuration. Run
+`--skip-deps` avoids package installation, but still installs Lucid and changes
+configuration. Run
 `./support/fedora/install.sh --help` for all supported options.
 
 ## Uninstall
